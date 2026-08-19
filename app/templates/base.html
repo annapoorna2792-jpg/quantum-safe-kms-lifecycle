@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ title }} · Quantum-Safe KMS Demo</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
+</head>
+<body>
+  <header><div><strong>Quantum-Safe KMS</strong><small>Multi-cloud lifecycle demo</small></div><nav><a href="/">Dashboard</a><a href="/keys">Key Lifecycle</a><a href="/demo">Hybrid Demo</a><a href="/compliance">Compliance</a></nav></header>
+  <main>
+    <aside class="warning"><strong>Hybrid capstone prototype:</strong> AWS KMS is live through the EC2 IAM role; Azure Key Vault is a labelled extension simulation because no Azure deployment is configured. liboqs is for research/prototyping, and the v2 combiner is custom—not a standardized hybrid protocol.</aside>
+    {% if not aws_kms.available %}<aside class="notice error"><strong>AWS KMS unavailable:</strong> {{ aws_kms.error }}.</aside>{% endif %}
+    {% if not pqc.available %}<aside class="notice error"><strong>Native PQC unavailable:</strong> {{ pqc.error }}. Hybrid crypto actions are deliberately disabled; no fake PQC fallback is used.</aside>{% endif %}
+    {% if message %}<div class="notice {{ kind }}">{{ message }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer>Educational, single-container demonstration. AWS KMS is live; the Azure adapter and custom hybrid protocol are not production implementations.</footer>
+</body></html>

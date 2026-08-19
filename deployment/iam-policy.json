@@ -1,0 +1,18 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "UseQuantumSafeDemoKey",
+      "Effect": "Allow",
+      "Action": [
+        "kms:DescribeKey",
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:GenerateDataKey",
+        "kms:GenerateDataKeyWithoutPlaintext",
+        "kms:GetKeyRotationStatus"
+      ],
+      "Resource": "arn:aws:kms:eu-north-1:YOUR_AWS_ACCOUNT_ID:key/YOUR_KMS_KEY_ID"
+    }
+  ]
+}

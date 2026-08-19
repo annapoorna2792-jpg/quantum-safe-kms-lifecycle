@@ -1,0 +1,25 @@
+services:
+  quantum-safe-kms:
+    build:
+      context: .
+      args:
+        LIBOQS_VERSION: "0.16.0"
+    ports:
+      - "${APP_PORT:-8001}:8000"
+    environment:
+      DEMO_MASTER_KEY: "${DEMO_MASTER_KEY:?Set DEMO_MASTER_KEY in .env}"
+      ROTATION_INTERVAL_SECONDS: "${ROTATION_INTERVAL_SECONDS:-120}"
+      DATABASE_PATH: /app/data/quantum_safe_kms.db
+      SCHEDULER_ENABLED: "false"
+      AWS_REGION: "${AWS_REGION:-eu-north-1}"
+      AWS_DEFAULT_REGION: "${AWS_REGION:-eu-north-1}"
+      AWS_KMS_KEY_ID: "${AWS_KMS_KEY_ID:-alias/quantum-safe-kms-demo}"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/healthz"]
+      interval: 15s
+      timeout: 4s
+      retries: 4
+      start_period: 20s
