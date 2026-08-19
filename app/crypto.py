@@ -16,6 +16,7 @@ from cryptography.hazmat.primitives.keywrap import aes_key_unwrap, aes_key_wrap
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from .aws_kms import KmsDataKeyProvider
+from .azure_kv import AzureKeyProvider
 
 def _native_oqs_present() -> bool:
     """Avoid liboqs-python's network auto-installer when a native library is absent."""
@@ -120,11 +121,12 @@ def kms_encryption_context(key_id: str) -> dict[str, str]:
 class HybridCrypto:
     protector: MasterKeyProtector
     aws_kms: KmsDataKeyProvider
+    azure_kv: AzureKeyProvider
 
     def create_version_material(self, key_id: str, expires_at: str) -> dict[str, Any]:
         require_pqc()
         aws_kek, aws_kms_ciphertext = self.aws_kms.generate_data_key(kms_encryption_context(key_id))
-        azure_kek = os.urandom(32)
+        azure_kek, azure_ciphertext = self.azure_kv.generate_data_key({"application": "quantum-safe-kms-demo", "key_id": key_id})
         dek = os.urandom(32)
         with oqs.KeyEncapsulation(KEM_ALGORITHM) as kem:
             pq_public = kem.generate_keypair()
@@ -136,7 +138,7 @@ class HybridCrypto:
         protected = self.protector.seal(
             {
                 "aws_kms_ciphertext": aws_kms_ciphertext,
-                "azure_simulated_kek": azure_kek,
+                "azure_kv_ciphertext": azure_ciphertext,
                 "ml_kem_secret": pq_secret,
             },
             f"key-version:{key_id}",
@@ -158,7 +160,7 @@ class HybridCrypto:
                         "key_id": aws_status.get("arn") or self.aws_kms.key_id,
                         "key": "KMS GenerateDataKey AES-256 contribution",
                     },
-                    {"name": "Azure Key Vault", "mode": "SIMULATION", "key": "independent AES-256 wrapping key"},
+                    {"name": "Azure Key Vault", "mode": "LIVE", "vault_url": self.azure_kv.vault_url, "key": "WrapKey AES-256 contribution"},
                 ],
             },
             "protected_material": protected,
@@ -181,7 +183,7 @@ class HybridCrypto:
             pq_shared = kem.decap_secret(unb64(version["kem_ciphertext"]))
         context = f"{ENVELOPE_FORMAT}|{version['key_id']}".encode()
         hybrid_kek = derive_hybrid_kek(
-            aws_kek, secrets["azure_simulated_kek"], pq_shared, context
+            aws_kek, self.azure_kv.decrypt_data_key(secrets["azure_kv_ciphertext"], {}), pq_shared, context
         )
         return aes_key_unwrap(hybrid_kek, unb64(version["wrapped_dek"]))
 

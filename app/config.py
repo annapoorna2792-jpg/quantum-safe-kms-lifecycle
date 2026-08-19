@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import base64
 import os
 from dataclasses import dataclass
@@ -14,6 +13,11 @@ class Settings:
     scheduler_enabled: bool
     aws_region: str
     aws_kms_key_id: str
+    azure_vault_url: str | None
+    azure_key_name: str
+    azure_tenant_id: str | None
+    azure_client_id: str | None
+    azure_client_secret: str | None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -29,7 +33,6 @@ class Settings:
             raise RuntimeError("DEMO_MASTER_KEY must be URL-safe base64") from exc
         if len(master_key) != 32:
             raise RuntimeError("DEMO_MASTER_KEY must decode to exactly 32 bytes")
-
         rotation_seconds = int(os.getenv("ROTATION_INTERVAL_SECONDS", "120"))
         if rotation_seconds < 10:
             raise RuntimeError("ROTATION_INTERVAL_SECONDS must be at least 10")
@@ -47,4 +50,9 @@ class Settings:
             scheduler_enabled=os.getenv("SCHEDULER_ENABLED", "true").lower() in {"1", "true", "yes"},
             aws_region=aws_region,
             aws_kms_key_id=aws_kms_key_id,
+            azure_vault_url=os.getenv("AZURE_VAULT_URL", "").strip() or None,
+            azure_key_name=os.getenv("AZURE_KEY_NAME", "quantum-safe-kms-demo-key").strip(),
+            azure_tenant_id=os.getenv("AZURE_TENANT_ID", "").strip() or None,
+            azure_client_id=os.getenv("AZURE_CLIENT_ID", "").strip() or None,
+            azure_client_secret=os.getenv("AZURE_CLIENT_SECRET", "").strip() or None,
         )

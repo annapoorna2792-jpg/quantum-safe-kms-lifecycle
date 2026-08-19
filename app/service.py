@@ -121,11 +121,7 @@ class KMSService:
         data["policy_violations"] = violations
         data["cloud_status"] = {
             "aws_kms": self.crypto.aws_kms.status(),
-            "azure_key_vault": {
-                "available": False,
-                "mode": "SIMULATION",
-                "reason": "Azure account was unavailable for this capstone deployment",
-            },
+            "azure_key_vault": self.crypto.azure_kv.status(),
         }
         data["disclaimers"] = [
             "AWS KMS is live and accessed through the EC2 instance role; Azure Key Vault remains a labelled simulation/extension point.",

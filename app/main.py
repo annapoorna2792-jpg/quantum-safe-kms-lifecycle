@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from .aws_kms import AwsKmsProvider
+from .azure_kv import AzureKeyVaultProvider
 from .config import Settings
 from .crypto import HybridCrypto, MasterKeyProtector, PQCUnavailable, pqc_status
 from .db import Repository
@@ -25,7 +26,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     repository = Repository(settings.database_path)
     aws_kms = AwsKmsProvider(settings.aws_region, settings.aws_kms_key_id)
-    crypto = HybridCrypto(MasterKeyProtector(settings.master_key), aws_kms)
+    azure_kv = AzureKeyVaultProvider(settings.azure_vault_url, settings.azure_key_name, settings.azure_tenant_id, settings.azure_client_id, settings.azure_client_secret)
+    crypto = HybridCrypto(MasterKeyProtector(settings.master_key), aws_kms, azure_kv)
     service = KMSService(repository, crypto, settings.rotation_seconds)
 
     @asynccontextmanager
@@ -73,13 +75,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "database": str(settings.database_path),
             "pqc": pqc,
             "aws_kms": kms,
-            "azure_key_vault": {"available": False, "mode": "SIMULATION", "reason": "No Azure account configured"},
+            "azure_key_vault": azure_kv.status(),
         }
 
     @app.get("/", response_class=HTMLResponse)
     def dashboard(request: Request, message: str | None = None, kind: str = "ok"):
         report = service.compliance_report()
-        return page(request, "dashboard.html", title="Dashboard", report=report, rotation_seconds=settings.rotation_seconds, message=message, kind=kind)
+        return page(request, "dashboard.html", title="Dashboard", report=report, aws_kms=aws_kms.status(), azure_kv=azure_kv.status(), rotation_seconds=settings.rotation_seconds, message=message, kind=kind)
 
     @app.get("/keys", response_class=HTMLResponse)
     def key_lifecycle(request: Request, message: str | None = None, kind: str = "ok"):

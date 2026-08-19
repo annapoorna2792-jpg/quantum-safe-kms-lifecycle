@@ -8,7 +8,7 @@
 <body>
   <header><div><strong>Quantum-Safe KMS</strong><small>Multi-cloud lifecycle demo</small></div><nav><a href="/">Dashboard</a><a href="/keys">Key Lifecycle</a><a href="/demo">Hybrid Demo</a><a href="/compliance">Compliance</a></nav></header>
   <main>
-    <aside class="warning"><strong>Hybrid capstone prototype:</strong> AWS KMS is live through the EC2 IAM role; Azure Key Vault is a labelled extension simulation because no Azure deployment is configured. liboqs is for research/prototyping, and the v2 combiner is custom—not a standardized hybrid protocol.</aside>
+    <aside class="warning"><strong>Hybrid capstone prototype:</strong> AWS KMS is live through the EC2 IAM role; Azure Key Vault is {{ 'also live through a service-principal credential' if (azure_kv is defined and azure_kv.mode == 'LIVE') else 'a labelled extension simulation because no Azure deployment is configured' }}. liboqs is for research/prototyping, and the v2 combiner is custom—not a standardized hybrid protocol.</aside>
     {% if not aws_kms.available %}<aside class="notice error"><strong>AWS KMS unavailable:</strong> {{ aws_kms.error }}.</aside>{% endif %}
     {% if not pqc.available %}<aside class="notice error"><strong>Native PQC unavailable:</strong> {{ pqc.error }}. Hybrid crypto actions are deliberately disabled; no fake PQC fallback is used.</aside>{% endif %}
     {% if message %}<div class="notice {{ kind }}">{{ message }}</div>{% endif %}
