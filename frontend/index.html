@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Quantum-Safe KMS — Post-quantum hybrid key lifecycle management dashboard with ML-KEM-768, AWS KMS, Azure Key Vault, and RBI/PCI-DSS/DORA compliance." />
+  <title>Quantum-Safe KMS | Capstone 2 Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- ── Sidebar ───────────────────────────────────────────────────────────── -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon">⚛</div>
+    <div class="brand-text">
+      <span class="brand-name">QuantumKMS</span>
+      <span class="brand-ver">v2.0 · Capstone 2</span>
+    </div>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="#" class="nav-item active" data-section="dashboard"   id="nav-dashboard">  <span class="nav-icon">◈</span> Dashboard     </a>
+    <a href="#" class="nav-item"        data-section="keys"        id="nav-keys">       <span class="nav-icon">⬡</span> Key Inventory  </a>
+    <a href="#" class="nav-item"        data-section="encrypt"     id="nav-encrypt">    <span class="nav-icon">🔐</span> Encrypt/Decrypt</a>
+    <a href="#" class="nav-item"        data-section="rotation"    id="nav-rotation">   <span class="nav-icon">↺</span> Rotation       </a>
+    <a href="#" class="nav-item"        data-section="compliance"  id="nav-compliance"> <span class="nav-icon">◉</span> Compliance     </a>
+    <a href="#" class="nav-item"        data-section="audit"       id="nav-audit">      <span class="nav-icon">◎</span> Audit Logs     </a>
+    <a href="#" class="nav-item"        data-section="providers"   id="nav-providers">  <span class="nav-icon">☁</span> Providers      </a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="sys-status" id="sys-status">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">Connecting…</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ── Main ──────────────────────────────────────────────────────────────── -->
+<main class="main-content" id="main-content">
+
+  <!-- Top Bar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <h1 class="page-title" id="page-title">Dashboard</h1>
+      <span class="page-sub"  id="page-sub">Key Management Overview</span>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-ghost" id="btn-refresh" title="Refresh">⟳ Refresh</button>
+      <button class="btn btn-demo" id="btn-demo-mode" title="Toggle Demo Mode">🎯 Demo Mode</button>
+      <button class="btn btn-primary" id="btn-create-key">＋ New Key</button>
+    </div>
+  </header>
+
+  <!-- ── Provider Health Strip ─────────────────────────────────────── -->
+  <div class="provider-strip" id="provider-strip">
+    <div class="provider-chip" id="chip-aws">
+      <span class="chip-dot" id="dot-aws"></span>
+      <span class="chip-label">AWS KMS</span>
+      <span class="chip-mode" id="mode-aws">…</span>
+    </div>
+    <div class="provider-chip" id="chip-azure">
+      <span class="chip-dot" id="dot-azure"></span>
+      <span class="chip-label">Azure KV</span>
+      <span class="chip-mode" id="mode-azure">…</span>
+    </div>
+    <div class="provider-chip doc" id="chip-gcp">
+      <span class="chip-dot doc"></span>
+      <span class="chip-label">GCP KMS</span>
+      <span class="chip-mode">DOC</span>
+    </div>
+    <div class="provider-chip" id="chip-pqc">
+      <span class="chip-dot" id="dot-pqc"></span>
+      <span class="chip-label">PQC liboqs</span>
+      <span class="chip-mode" id="mode-pqc">…</span>
+    </div>
+    <div class="provider-chip region-chip">
+      <span class="chip-label">Region</span>
+      <span class="chip-mode" id="chip-region">…</span>
+    </div>
+  </div>
+
+  <!-- ── Demo Mode Banner ────────────────────────────────────────── -->
+  <div id="demo-banner" class="demo-banner" style="display:none">
+    <span class="demo-badge">🎯 DEMO MODE</span>
+    <span>All data is simulated — no backend required. Perfect for examiner demonstrations.</span>
+    <button class="demo-dismiss" onclick="toggleDemoMode()">✕ Exit Demo</button>
+  </div>
+
+  <!-- ════════════════ DASHBOARD SECTION ═══════════════════════════════ -->
+  <section class="section active" id="section-dashboard">
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-card" id="sc-total">
+        <div class="stat-icon" style="background:var(--c-purple-glow)">⬡</div>
+        <div class="stat-body">
+          <div class="stat-val" id="sv-total">–</div>
+          <div class="stat-lbl">Total Keys</div>
+        </div>
+      </div>
+      <div class="stat-card" id="sc-versions">
+        <div class="stat-icon" style="background:var(--c-cyan-glow)">◈</div>
+        <div class="stat-body">
+          <div class="stat-val" id="sv-versions">–</div>
+          <div class="stat-lbl">Total Versions</div>
+        </div>
+      </div>
+      <div class="stat-card highlight" id="sc-pqc">
+        <div class="stat-icon" style="background:var(--c-emerald-glow)">⚛</div>
+        <div class="stat-body">
+          <div class="stat-val" id="sv-pqc">–</div>
+          <div class="stat-lbl">PQC-Ready Versions</div>
+        </div>
+        <div class="stat-badge">FIPS 203</div>
+      </div>
+      <div class="stat-card" id="sc-violations">
+        <div class="stat-icon" style="background:var(--c-amber-glow)">⚠</div>
+        <div class="stat-body">
+          <div class="stat-val" id="sv-violations">–</div>
+          <div class="stat-lbl">Violations</div>
+        </div>
+      </div>
+      <div class="stat-card" id="sc-score">
+        <div class="stat-icon" style="background:var(--c-green-glow)">✓</div>
+        <div class="stat-body">
+          <div class="stat-val" id="sv-score">–%</div>
+          <div class="stat-lbl">PQC Coverage</div>
+        </div>
+      </div>
+      <div class="stat-card danger" id="sc-rotation">
+        <div class="stat-icon" style="background:var(--c-red-glow)">↺</div>
+        <div class="stat-body">
+          <div class="stat-val" id="sv-rotation">–</div>
+          <div class="stat-lbl">Due Rotation</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compliance Framework Cards -->
+    <div class="framework-row" id="framework-row"></div>
+
+    <!-- Recent activity -->
+    <div class="table-card">
+      <h3 class="card-title">Recent Audit Activity</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Timestamp</th><th>Action</th><th>Key</th><th>Version</th><th>Status</th></tr></thead>
+          <tbody id="tbody-recent"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════ KEY INVENTORY SECTION ═══════════════════════════ -->
+  <section class="section" id="section-keys">
+    <div class="section-toolbar">
+      <select id="filter-provider" class="filter-select">
+        <option value="">All Providers</option>
+        <option value="aws_kms">AWS KMS</option>
+        <option value="azure_kv">Azure KV</option>
+        <option value="gcp_kms">GCP KMS</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" id="btn-apply-filter">Filter</button>
+    </div>
+    <div class="table-card">
+      <div class="table-wrap">
+        <table class="data-table" id="table-keys">
+          <thead>
+            <tr>
+              <th>Alias</th><th>Algorithm</th><th>Provider</th>
+              <th>Active Version</th><th>Total Versions</th>
+              <th>Quantum Risk</th><th>Status</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-keys"></tbody>
+        </table>
+      </div>
+      <div id="keys-empty" class="empty-state" style="display:none">
+        <div class="empty-icon">⬡</div>
+        <p>No keys yet. Create your first quantum-safe key.</p>
+        <button class="btn btn-primary" id="btn-create-key2">＋ Create Key</button>
+      </div>
+    </div>
+
+    <!-- Version History Panel (shown per key) -->
+    <div class="table-card" id="version-panel" style="display:none">
+      <h3 class="card-title" id="version-panel-title">Version History</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Version</th><th>State</th><th>Algorithms</th>
+              <th>Quantum Risk</th><th>Transit Posture</th>
+              <th>Created</th><th>Rotation Due</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-versions"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════ ENCRYPT / DECRYPT SECTION ═══════════════════════ -->
+  <section class="section" id="section-encrypt">
+    <div class="encrypt-layout">
+      <!-- Encrypt -->
+      <div class="crypto-card" id="encrypt-card">
+        <h3 class="card-title">🔐 Encrypt</h3>
+        <div class="form-group">
+          <label for="enc-alias">Key Alias</label>
+          <input id="enc-alias" type="text" value="customer-data" placeholder="customer-data" />
+        </div>
+        <div class="form-group">
+          <label for="enc-tenant">Tenant Context</label>
+          <input id="enc-tenant" type="text" value="demo-tenant-1" placeholder="demo-tenant-1" />
+        </div>
+        <div class="form-group">
+          <label for="enc-plaintext">Plaintext</label>
+          <textarea id="enc-plaintext" rows="4" placeholder="Harvest report: 42 tonnes">Harvest report: 42 tonnes</textarea>
+        </div>
+        <button class="btn btn-primary" id="btn-encrypt">⚡ Encrypt</button>
+        <div id="enc-result" class="result-box" style="display:none"></div>
+      </div>
+
+      <!-- Decrypt -->
+      <div class="crypto-card" id="decrypt-card">
+        <h3 class="card-title">🔓 Decrypt</h3>
+        <div class="form-group">
+          <label for="dec-envelope-id">Envelope ID</label>
+          <input id="dec-envelope-id" type="text" placeholder="Paste envelope_id from encrypt result" />
+        </div>
+        <button class="btn btn-secondary" id="btn-decrypt">🔓 Decrypt</button>
+        <div id="dec-result" class="result-box" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- Envelope viewer -->
+    <div class="table-card" id="envelope-viewer" style="display:none">
+      <h3 class="card-title">v2 Hybrid Envelope Structure</h3>
+      <div class="envelope-grid" id="envelope-grid"></div>
+    </div>
+  </section>
+
+  <!-- ════════════════ ROTATION SECTION ════════════════════════════════ -->
+  <section class="section" id="section-rotation">
+    <div class="rotation-grid">
+      <div class="table-card">
+        <h3 class="card-title">⟳ Rotation Status</h3>
+        <div id="rotation-status-body"></div>
+        <div class="rotation-actions">
+          <button class="btn btn-primary" id="btn-rotate-now">▶ Rotate Now</button>
+          <span class="hint-text">Rotates all keys past their due date using Algorithm 8.3.</span>
+        </div>
+        <div id="rotation-result" style="display:none" class="result-box"></div>
+      </div>
+      <div class="table-card">
+        <h3 class="card-title">Saga Rotation (§10.9)</h3>
+        <p class="card-desc">Deferred-activation multi-provider rotation — 0 consistency violations.</p>
+        <div class="saga-info">
+          <div class="saga-stat"><span>Design</span><b>Deferred Activation</b></div>
+          <div class="saga-stat"><span>Consistency Violations</span><b id="saga-violations">0</b></div>
+          <div class="saga-stat"><span>Pattern</span><b>Saga with compensation</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════ COMPLIANCE SECTION ══════════════════════════════ -->
+  <section class="section" id="section-compliance">
+    <div class="compliance-actions">
+      <button class="btn btn-primary"   id="btn-gen-report">Generate Full Report</button>
+      <button class="btn btn-secondary" id="btn-download-evidence">⬇ Download JSON Evidence</button>
+    </div>
+    <div id="compliance-summary"></div>
+    <div class="table-card" style="margin-top:1.5rem">
+      <h3 class="card-title">Framework Compliance Status</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Framework</th><th>Control</th><th>Status</th></tr></thead>
+          <tbody id="tbody-frameworks"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="table-card" style="margin-top:1.5rem">
+      <h3 class="card-title">Provider Capability Matrix (§10.5)</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Provider</th><th>Mode</th><th>PQ Import</th><th>Transit Posture</th><th>Import Methods</th><th>Notes</th></tr></thead>
+          <tbody id="tbody-providers-cap"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════ AUDIT LOGS SECTION ══════════════════════════════ -->
+  <section class="section" id="section-audit">
+    <div class="table-card">
+      <h3 class="card-title">Audit Trail</h3>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Timestamp</th><th>Action</th><th>Key</th><th>Version</th><th>Details</th><th>Status</th></tr></thead>
+          <tbody id="tbody-audit"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════ PROVIDERS SECTION ═══════════════════════════════ -->
+  <section class="section" id="section-providers">
+    <div class="providers-grid" id="providers-grid"></div>
+    <div class="table-card" style="margin-top:1.5rem">
+      <h3 class="card-title">Import Channel Quantum Safety (§10.5)</h3>
+      <p class="card-desc">
+        AWS and Azure accept key material only under RSA wrapping — no post-quantum import option.
+        GCP supports HPKE/ML-KEM-768 in preview (software level only, not exercised against live service).
+      </p>
+      <div class="table-wrap">
+        <table class="data-table" id="table-cap-matrix"></table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ── Create Key Modal ────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-create" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Create Cryptographic Key</h2>
+      <button class="modal-close" id="modal-close">✕</button>
+    </div>
+    <form class="modal-body" id="form-create">
+      <div class="form-group">
+        <label for="inp-name">Key Alias *</label>
+        <input id="inp-name" type="text" placeholder="customer-data" required />
+      </div>
+      <div class="form-group">
+        <label for="inp-algo">Algorithm *</label>
+        <select id="inp-algo" required>
+          <optgroup label="⚡ Hybrid (Classical + PQC) — Recommended">
+            <option value="HYBRID-ML-KEM-768-AES-256-GCM" selected>HYBRID-ML-KEM-768-AES-256-GCM (FIPS 203)</option>
+          </optgroup>
+          <optgroup label="🔒 Classical Only">
+            <option value="AES-256-GCM">AES-256-GCM</option>
+            <option value="RSA-4096">RSA-4096 (QUANTUM_VULNERABLE)</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="inp-provider">KMS Provider *</label>
+        <select id="inp-provider" required>
+          <option value="aws_kms">AWS KMS (Live/Sim)</option>
+          <option value="azure_kv">Azure Key Vault (Live/Sim)</option>
+          <option value="gcp_kms">GCP Cloud KMS (Doc)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="inp-owner">Owner</label>
+          <input id="inp-owner" type="text" placeholder="security-team" />
+        </div>
+        <div class="form-group">
+          <label for="inp-env">Environment</label>
+          <select id="inp-env">
+            <option value="production">Production</option>
+            <option value="staging">Staging</option>
+            <option value="development">Development</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="inp-purpose">Purpose</label>
+        <input id="inp-purpose" type="text" placeholder="Data-at-rest encryption" />
+      </div>
+      <div class="form-group">
+        <label for="inp-rotation">Rotation Interval (days)</label>
+        <input id="inp-rotation" type="number" value="365" min="1" max="3650" />
+        <small class="form-hint">PCI-DSS v4.0 §3.7.1 requires ≤365 days</small>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="btn-cancel-modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create Key</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Toast ──────────────────────────────────────────────────────── -->
+<div class="toast-container" id="toast-container"></div>
+
+<script src="js/dashboard.js"></script>
+</body>
+</html>
