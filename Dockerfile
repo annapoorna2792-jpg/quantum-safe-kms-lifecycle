@@ -1,39 +1,64 @@
-FROM python:3.12-slim-bookworm AS liboqs-build
+# ── Stage 1: liboqs builder ───────────────────────────────────────────────────
+# Builds liboqs 0.10.1 from source with ML-KEM-768 and ML-DSA-65 support.
+# Matches report §6 environment setup.
+FROM python:3.12-slim AS liboqs-builder
 
-ARG LIBOQS_VERSION=0.16.0
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      build-essential cmake git libssl-dev ninja-build ca-certificates \
+    build-essential cmake ninja-build libssl-dev pkg-config git curl \
     && rm -rf /var/lib/apt/lists/*
-RUN git clone --depth 1 --branch "${LIBOQS_VERSION}" https://github.com/open-quantum-safe/liboqs.git /src/liboqs
-RUN cmake -S /src/liboqs -B /src/liboqs/build -GNinja \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_INSTALL_PREFIX=/opt/liboqs \
-      -DBUILD_SHARED_LIBS=ON \
-      -DOQS_BUILD_ONLY_LIB=ON \
-      -DOQS_DIST_BUILD=ON \
-      -DOQS_MINIMAL_BUILD="KEM_ml_kem_768;SIG_ml_dsa_65" \
-    && cmake --build /src/liboqs/build --parallel 2 \
-    && cmake --install /src/liboqs/build
 
-FROM python:3.12-slim-bookworm
+ARG LIBOQS_VERSION=0.10.1
+RUN git clone --depth 1 --branch ${LIBOQS_VERSION} \
+    https://github.com/open-quantum-safe/liboqs.git /opt/liboqs
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
-COPY --from=liboqs-build /opt/liboqs /usr/local
-ENV LD_LIBRARY_PATH=/usr/local/lib \
-    OQS_INSTALL_PATH=/usr/local \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PYOQS_VERSION=0.16.0 \
-    DATABASE_PATH=/app/data/quantum_safe_kms.db \
-    ROTATION_INTERVAL_SECONDS=120
+RUN cmake -S /opt/liboqs -B /opt/liboqs/build \
+        -GNinja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED_LIBS=ON \
+        -DOQS_USE_OPENSSL=ON \
+    && cmake --build /opt/liboqs/build \
+    && cmake --install /opt/liboqs/build --prefix /usr/local
+
+
+# ── Stage 2: Python app ───────────────────────────────────────────────────────
+FROM python:3.12-slim
+
+# Copy liboqs shared library from builder
+COPY --from=liboqs-builder /usr/local /usr/local
+RUN ldconfig
 
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY app ./app
-RUN mkdir -p /app/data && useradd --create-home --uid 1000 appuser && chown -R appuser:appuser /app
-USER appuser
-EXPOSE 8000
-HEALTHCHECK --interval=15s --timeout=4s --start-period=20s --retries=4 CMD curl -fsS http://127.0.0.1:8000/healthz || exit 1
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+
+# System deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libffi-dev libssl-dev curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python dependencies (including pyoqs — liboqs Python binding)
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir pyoqs==0.10.1
+
+# Copy application source
+COPY backend/app ./app
+
+# Persistent data volume for SQLite
+RUN mkdir -p /app/data
+VOLUME ["/app/data"]
+
+# Environment defaults (overridden by docker-compose.yml)
+ENV DATABASE_URL=sqlite:////app/data/quantum_kms.db
+ENV DEFAULT_KMS_PROVIDER=aws_kms
+ENV PROVIDER_MODE=auto
+ENV KEY_ROTATION_DAYS=365
+ENV ROTATION_INTERVAL_SECONDS=120
+ENV SEED_DEMO_KEY=true
+ENV DEFAULT_KEY_ALIAS=customer-data
+ENV AWS_REGION=eu-north-1
+
+EXPOSE 8001
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
+    CMD curl -f http://localhost:8001/healthz || exit 1
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]
