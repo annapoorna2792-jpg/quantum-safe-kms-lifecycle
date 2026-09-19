@@ -1,19 +1,47 @@
-.env
-.venv/
+# Python
 __pycache__/
-.pytest_cache/
-*.pyc
-data/*.db
-data/*.db-*
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+ENV/
+env/
 
-
-.env.*
-!.env.example
-*.pem
-*.key
-*.p12
-*.pfx
-.aws/
-data/
+# Database
 *.db
-*.db-*
+*.sqlite
+*.sqlite3
+
+# Environment files
+.env
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Docker
+*.tar
+
+# Distribution
+*.whl
