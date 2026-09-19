@@ -1,30 +1,49 @@
+version: "3.9"
+
 services:
-  quantum-safe-kms:
-    build:
-      context: .
-      args:
-        LIBOQS_VERSION: "0.16.0"
+  # ── Backend API ────────────────────────────────────────────────────
+  backend:
+    build: .
+    container_name: quantum-kms-api
     ports:
-      - "${APP_PORT:-8001}:8000"
+      - "8001:8001"          # Report uses port 8001 (§8.6)
     environment:
-      DEMO_MASTER_KEY: "${DEMO_MASTER_KEY:?Set DEMO_MASTER_KEY in .env}"
-      ROTATION_INTERVAL_SECONDS: "${ROTATION_INTERVAL_SECONDS:-120}"
-      DATABASE_PATH: /app/data/quantum_safe_kms.db
-      SCHEDULER_ENABLED: "false"
-      AWS_REGION: "${AWS_REGION:-eu-north-1}"
-      AWS_DEFAULT_REGION: "${AWS_REGION:-eu-north-1}"
-      AWS_KMS_KEY_ID: "${AWS_KMS_KEY_ID:-alias/quantum-safe-kms-demo}"
-      AZURE_VAULT_URL: "${AZURE_VAULT_URL:-}"
-      AZURE_KEY_NAME: "${AZURE_KEY_NAME:-quantum-safe-kms-demo-key}"
-      AZURE_TENANT_ID: "${AZURE_TENANT_ID:-}"
-      AZURE_CLIENT_ID: "${AZURE_CLIENT_ID:-}"
-      AZURE_CLIENT_SECRET: "${AZURE_CLIENT_SECRET:-}"
+      - DATABASE_URL=sqlite:////app/data/quantum_kms.db
+      - DEFAULT_KMS_PROVIDER=aws_kms
+      - PROVIDER_MODE=auto
+      - KEY_ROTATION_DAYS=365
+      - ROTATION_INTERVAL_SECONDS=120
+      - SECRET_KEY=docker-dev-secret-change-in-production
+      - SEED_DEMO_KEY=true
+      - DEFAULT_KEY_ALIAS=customer-data
+      - AWS_REGION=eu-north-1
+      - AWS_KMS_KEY_ALIAS=alias/quantum-safe-kms-demo
+      # Set these for live AWS / Azure (leave blank for sim):
+      # - AWS_KMS_KEY_ID=
+      # - AZURE_VAULT_URL=
+      # - AZURE_CLIENT_ID=
+      # - AZURE_CLIENT_SECRET=
+      # - AZURE_TENANT_ID=
     volumes:
-      - ./data:/app/data
+      - kms-data:/app/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/healthz"]
-      interval: 15s
-      timeout: 4s
-      retries: 4
-      start_period: 20s
+      test: ["CMD", "curl", "-f", "http://localhost:8001/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Frontend (served by FastAPI static mount OR nginx) ─────────────
+  frontend:
+    image: nginx:alpine
+    container_name: quantum-kms-ui
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  kms-data:
